@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>생물 유전 학습 시스템 (세포 분화와 발생)</title>
+    <style>
+        :root { --primary: #2c3e50; --secondary: #27ae60; --bg: #f4f7f6; }
+        body { font-family: 'Pretendard', sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 850px; margin: 0 auto; background: white; border-radius: 15px; shadow: 0 10px 25px rgba(0,0,0,0.1); overflow: hidden; }
+        
+        /* 헤더 & 탭 */
+        .header { background: var(--primary); color: white; padding: 20px; text-align: center; }
+        .tabs { display: flex; background: #eee; }
+        .tab-btn { flex: 1; padding: 15px; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .tab-btn.active { background: white; color: var(--primary); }
+
+        .content { display: none; padding: 30px; min-height: 400px; }
+        .content.active { display: block; }
+
+        /* 학생 챗봇 디자인 */
+        .chat-display { height: 350px; overflow-y: auto; border: 1px solid #ddd; border-radius: 10px; padding: 15px; margin-bottom: 20px; background: #fafafa; }
+        .bubble { margin-bottom: 15px; padding: 12px 18px; border-radius: 20px; max-width: 75%; font-size: 15px; line-height: 1.5; }
+        .user-bubble { background: var(--primary); color: white; margin-left: auto; border-bottom-right-radius: 2px; }
+        .ai-bubble { background: #e9ecef; color: #333; border-bottom-left-radius: 2px; }
+
+        /* 관리자 테이블 */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { border: 1px solid #eee; padding: 12px; text-align: left; }
+        th { background: #f8f9fa; color: var(--primary); }
+        .download-btn { background: var(--secondary); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; float: right; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h2>🧬 생물 교육 에듀테크 센터</h2>
+        <p>단원: 세포 분화와 발생 (Advanced Learning)</p>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('student')">학생 질문창</button>
+        <button class="tab-btn" onclick="showTab('admin')">교사용 관리 (Hidden)</button>
+    </div>
+
+    <div id="student" class="content active">
+        <div class="chat-display" id="chatArea">
+            <div class="bubble ai-bubble">안녕하세요! 오늘 배운 '세포 분화와 발생' PDF 내용에 대해 궁금한 점을 물어보세요.</div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="stuName" placeholder="이름" style="width: 80px; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+            <input type="text" id="stuInput" placeholder="질문을 입력하세요 (예: 유전적 프로그램이란?)" style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" onkeypress="if(event.keyCode==13) processAsk()">
+            <button onclick="processAsk()" style="padding: 12px 25px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer;">질문</button>
+        </div>
+    </div>
+
+    <div id="admin" class="content">
+        <div id="lockScreen" style="text-align: center; padding-top: 50px;">
+            <h3>🔒 관리자 인증이 필요합니다</h3>
+            <input type="password" id="pw" placeholder="비밀번호 입력" style="padding: 10px;">
+            <button onclick="unlock()" style="padding: 10px 20px;">접속</button>
+        </div>
+        <div id="adminPanel" style="display: none;">
+            <button class="download-btn" onclick="saveAsExcel()">엑셀(CSV) 저장</button>
+            <h3>📊 전체 학생 질문 로그</h3>
+            <table id="logTable">
+                <thead>
+                    <tr><th>시간</th><th>학생</th><th>질문</th><th>AI 답변</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. 내장 지식 베이스 (인터넷 유용한 정보 + PDF 핵심 요약)
+    const knowledgeBase = {
+        "세포분화": "세포분화는 수정란이 분열하여 생긴 세포들이 서로 다른 구조와 기능을 가진 세포로 변하는 과정입니다. 모든 세포는 동일한 유전 정보를 갖지만, 발현되는 유전자의 종류가 다르기 때문에 일어납니다.",
+        "발생": "한 개의 수정란이 세포 분열과 분화를 거쳐 복잡한 구조를 가진 개체로 완성되어 가는 전체 과정을 말합니다.",
+        "줄기세포": "아직 특정한 세포로 분화되지 않은 미분화 상태의 세포로, 자가 복제 능력과 다양한 세포로 분화할 수 있는 다분화능을 가지고 있습니다.",
+        "배아줄기세포": "발생 초기 배아의 포배기 내부 세포 집단에서 유래하며, 우리 몸을 구성하는 모든 세포로 분화할 수 있는 전분화능(Pluripotency)을 가집니다.",
+        "성체줄기세포": "이미 성숙한 조직(골수, 혈액 등)에 존재하는 줄기세포로, 특정 조직의 세포로만 분화할 수 있으며 조직의 재생과 유지에 관여합니다.",
+        "유전적프로그램": "생물의 발생 과정이 DNA에 저장된 정보에 따라 순차적으로 진행되는 것을 의미합니다. 특정 시기에 특정 유전자가 켜지거나 꺼지면서 조절됩니다.",
+        "가소성": "성체 줄기 세포가 원래 속한 조직 외의 다른 조직 세포로 분화할 수 있는 능력을 말하며, 최근 재생 의학에서 중요하게 다뤄집니다."
+    };
+
+    let logData = [];
+
+    function showTab(id) {
+        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    function unlock() {
+        if(document.getElementById('pw').value === "1234") { // 비밀번호 1234
+            document.getElementById('lockScreen').style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'block';
+        } else { alert("비밀번호가 틀렸습니다."); }
+    }
+
+    function processAsk() {
+        const name = document.getElementById('stuName').value || "익명";
+        const input = document.getElementById('stuInput').value;
+        if(!input) return;
+
+        addBubble('user', input);
+        
+        // 지식 베이스에서 키워드 매칭
+        let answer = "입력하신 질문은 PDF 내용이나 내장 지식에서 찾기 어렵네요. '줄기세포', '분화', '유전적 프로그램' 등 핵심 키워드를 포함해 질문해 볼까요?";
+        for(let key in knowledgeBase) {
+            if(input.includes(key)) {
+                answer = knowledgeBase[key];
+                break;
+            }
+        }
+
+        setTimeout(() => {
+            addBubble('ai', answer);
+            recordLog(name, input, answer);
+        }, 500);
+        
+        document.getElementById('stuInput').value = "";
+    }
+
+    function addBubble(type, text) {
+        const div = document.createElement('div');
+        div.className = `bubble ${type}-bubble`;
+        div.innerText = text;
+        const area = document.getElementById('chatArea');
+        area.appendChild(div);
+        area.scrollTop = area.scrollHeight;
+    }
+
+    function recordLog(name, q, a) {
+        const time = new Date().toLocaleTimeString();
+        logData.push({time, name, q, a});
+        const tbody = document.querySelector("#logTable tbody");
+        const row = `<tr><td>${time}</td><td>${name}</td><td>${q}</td><td>${a}</td></tr>`;
+        tbody.innerHTML = row + tbody.innerHTML; // 최신글 위로
+    }
+
+    function saveAsExcel() {
+        let csv = "\ufeff시간,학생명,질문,AI답변\n";
+        logData.forEach(d => {
+            csv += `"${d.time}","${d.name}","${d.q}","${d.a}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "생물수업_학습로그.csv";
+        link.click();
+    }
+</script>
+
+</body>
+</html>
